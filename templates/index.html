@@ -1,229 +1,305 @@
+
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Prashant | Flask App 🚀</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
 
+    <title>Two-Tier Message App</title>
+
+    <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Poppins', sans-serif;
         }
 
         body {
-            background: linear-gradient(160deg, #0C0D16, #1A1C2B);
+            font-family: system-ui, -apple-system, sans-serif;
+            background: linear-gradient(145deg, #0c0d16, #1a1c2b);
             color: #ffffff;
+            min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 100vh;
-            padding: 20px;
+            padding: 24px;
         }
 
-        /* Flex container for profile + content */
         .container {
+            width: 100%;
+            max-width: 760px;
+            padding: 32px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 18px;
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .eyebrow {
+            color: #7db2ff;
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+
+        h1 {
+            color: #75aaff;
+            font-size: clamp(1.8rem, 5vw, 2.5rem);
+            margin-bottom: 12px;
+        }
+
+        .subtitle {
+            color: #c5c8d5;
+            line-height: 1.7;
+            margin-bottom: 24px;
+        }
+
+        .tech-stack {
             display: flex;
-            flex-direction: row;
-            max-width: 1050px;
-            width: 100%;
-            padding: 30px;
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 28px;
+        }
+
+        .tech {
+            padding: 7px 12px;
+            border: 1px solid rgba(117, 170, 255, 0.3);
+            background: rgba(117, 170, 255, 0.1);
             border-radius: 20px;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+            color: #c9ddff;
+            font-size: 0.85rem;
         }
 
-        /* Left side: profile photo */
-        .profile-photo {
-            flex: 0 0 200px;
-            margin-right: 30px;
-        }
-
-        .profile-photo img {
-            width: 100%;
-            border-radius: 50%;
-            border: 3px solid #5599FF;
-            box-shadow: 0 4px 15px rgba(85, 153, 255, 0.5);
-        }
-
-        /* Right side: content */
-        .content {
-            flex: 1;
-        }
-
-        .header h1 {
-            font-size: 2rem;
-            font-weight: 600;
-            color: #5599FF;
-            margin-bottom: 8px;
-        }
-
-        .header p {
-            font-size: 1rem;
-            color: #ccc;
-            margin-bottom: 15px;
-        }
-
-        .about {
-            margin-bottom: 20px;
-            padding: 10px 15px;
-            border-radius: 12px;
-            background: rgba(255, 255, 255, 0.05);
-        }
-
-        .about h2 {
-            font-size: 1.3rem;
-            color: #5599FF;
-            margin-bottom: 8px;
-        }
-
-        .about p {
-            font-size: 0.95rem;
-            color: #ddd;
-            line-height: 1.5;
+        .section-title {
+            font-size: 1.15rem;
+            margin-bottom: 12px;
         }
 
         .messages {
-            margin-bottom: 15px;
-            padding: 12px;
-            background: rgba(85, 153, 255, 0.08);
-            border: 1px solid rgba(85, 153, 255, 0.2);
-            border-radius: 12px;
-            max-height: 200px;
+            min-height: 100px;
+            max-height: 260px;
             overflow-y: auto;
-            text-align: left;
+            padding: 12px;
+            margin-bottom: 18px;
+            background: rgba(0, 0, 0, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
         }
 
-        .messages p {
-            padding: 8px;
-            background: rgba(255, 255, 255, 0.07);
+        .message {
+            padding: 12px;
+            margin-bottom: 8px;
+            background: rgba(117, 170, 255, 0.09);
             border-radius: 8px;
-            margin-bottom: 6px;
-            font-size: 0.95rem;
+            overflow-wrap: anywhere;
+            line-height: 1.5;
+        }
+
+        .message:last-child {
+            margin-bottom: 0;
+        }
+
+        .empty-state {
+            color: #9298aa;
+            text-align: center;
+            padding: 24px 8px;
+        }
+
+        form {
+            display: flex;
+            gap: 10px;
         }
 
         input[type="text"] {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid rgba(85, 153, 255, 0.3);
-            background: rgba(255, 255, 255, 0.05);
-            color: #fff;
+            flex: 1;
+            min-width: 0;
+            padding: 13px 14px;
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid #41465a;
             border-radius: 8px;
-            font-size: 16px;
-            transition: all 0.3s ease;
-            text-align: center;
+            font-size: 1rem;
         }
 
         input[type="text"]:focus {
-            border-color: #5599FF;
-            box-shadow: 0 0 12px rgba(85, 153, 255, 0.6);
-            outline: none;
+            outline: 2px solid #75aaff;
+            outline-offset: 2px;
         }
 
-        input[type="submit"] {
-            width: 100%;
-            padding: 12px;
-            background: #5599FF;
+        button {
+            padding: 13px 22px;
+            background: #5599ff;
             color: #ffffff;
             border: none;
             border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
             cursor: pointer;
-            font-size: 16px;
-            transition: all 0.3s ease;
         }
 
-        input[type="submit"]:hover {
-            background: #417ad6;
-            box-shadow: 0 0 15px rgba(85, 153, 255, 0.6);
-            transform: translateY(-2px);
+        button:hover {
+            background: #397bdc;
         }
 
-        /* Responsive */
-        @media (max-width: 800px) {
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .status {
+            min-height: 24px;
+            margin-top: 12px;
+            color: #aabbd5;
+            font-size: 0.9rem;
+        }
+
+        .footer {
+            margin-top: 24px;
+            padding-top: 18px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            color: #9298aa;
+            font-size: 0.85rem;
+            line-height: 1.6;
+        }
+
+        @media (max-width: 520px) {
             .container {
-                flex-direction: column;
-                align-items: center;
+                padding: 22px;
             }
 
-            .profile-photo {
-                margin-right: 0;
-                margin-bottom: 20px;
-                flex: 0 0 auto;
+            form {
+                flex-direction: column;
+            }
+
+            button {
+                width: 100%;
             }
         }
     </style>
 </head>
 
 <body>
-    <div class="container">
-        <!-- Profile photo -->
-        <div class="profile-photo">
-            <img src="1.png" alt="Prashant Photo">
+    <main class="container">
+        <p class="eyebrow">DevOps Portfolio Project</p>
+
+        <h1>Two-Tier Message App</h1>
+
+        <p class="subtitle">
+            A web application built with Flask and MySQL.
+            Submit a message, store it in the database, and see it
+            displayed below.
+        </p>
+
+        <div class="tech-stack" aria-label="Technologies used">
+            <span class="tech">Python / Flask</span>
+            <span class="tech">MySQL</span>
+            <span class="tech">Docker</span>
+            <span class="tech">Docker Compose</span>
         </div>
 
-        <!-- Content -->
-        <div class="content">
-            <div class="header">
-                <h1>Prashant Gohil | DevOps Enthusiast</h1>
-                <p>Student | Aspiring Cloud & DevOps Engineer</p>
-            </div>
+        <section aria-labelledby="messages-title">
+            <h2 class="section-title" id="messages-title">
+                Messages
+            </h2>
 
-            <div class="about">
-                <h2>About Me</h2>
-                <p>Hi, I'm <b>Prashant</b> 👋, a student and aspiring Cloud & DevOps engineer.</p>
-                <p style="margin-top:10px;">
-                    <b>Project:</b> I have deployed a 2-tier Flask application (Flask + MySQL) on AWS EC2 using Docker.  
-                    I used Docker Compose to manage both containers with volumes and a custom network.  
-                    The source code is hosted on GitHub, and Jenkins is integrated to set up a CI/CD pipeline for automated deployment.
-                </p>
-            </div>
-
-            <div class="messages">
+            <div class="messages" id="messages" aria-live="polite">
                 {% for message in messages %}
-                    <p>{{ message[0] }}</p>
+                    <p class="message">{{ message[0] }}</p>
+                {% else %}
+                    <p class="empty-state" id="empty-state">
+                        No messages yet. Add the first one below.
+                    </p>
                 {% endfor %}
             </div>
+        </section>
 
-            <form id="messageForm">
-                <input type="text" name="new_message" placeholder="Type your message..." required>
-                <input type="submit" value="Send">
-            </form>
-        </div>
-    </div>
+        <form id="messageForm">
+            <input
+                type="text"
+                id="new_message"
+                name="new_message"
+                placeholder="Write a message..."
+                aria-label="Your message"
+                maxlength="1000"
+                required
+            >
 
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+            <button type="submit" id="submitButton">
+                Send Message
+            </button>
+        </form>
+
+        <p class="status" id="status" role="status"></p>
+
+        <footer class="footer">
+            Built to practise containerization, service networking,
+            persistent database storage, and deployment automation.
+        </footer>
+    </main>
+
     <script>
-        $(document).ready(function() {
-            $("#messageForm").on("submit", function(event) {
-                event.preventDefault();
-                let messageInput = $("input[name='new_message']");
-                let message = messageInput.val().trim();
+        const form = document.getElementById("messageForm");
+        const input = document.getElementById("new_message");
+        const messages = document.getElementById("messages");
+        const status = document.getElementById("status");
+        const submitButton = document.getElementById("submitButton");
 
-                if (message === "") {
-                    alert("Message cannot be empty!");
-                    return;
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+
+            const message = input.value.trim();
+
+            if (!message) {
+                status.textContent = "Please enter a message.";
+                return;
+            }
+
+            submitButton.disabled = true;
+            status.textContent = "Saving message...";
+
+            try {
+                const response = await fetch("/submit", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/x-www-form-urlencoded;charset=UTF-8"
+                    },
+                    body: new URLSearchParams({
+                        new_message: message
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error("The server could not save the message.");
                 }
 
-                $.ajax({
-                    url: "/submit",
-                    type: "POST",
-                    data: { new_message: message },
-                    success: function(response) {
-                        if (response && response.message) {
-                            $(".messages").append("<p>" + response.message + "</p>");
-                            messageInput.val("");
-                        }
-                    },
-                    error: function(xhr, status, error) {
-                        console.error("AJAX Error:", status, error);
-                    }
-                });
-            });
+                const data = await response.json();
+
+                const emptyState = document.getElementById("empty-state");
+                if (emptyState) {
+                    emptyState.remove();
+                }
+
+                const messageElement = document.createElement("p");
+                messageElement.className = "message";
+                messageElement.textContent = data.message;
+
+                messages.appendChild(messageElement);
+                messages.scrollTop = messages.scrollHeight;
+
+                input.value = "";
+                status.textContent = "Message saved successfully.";
+                input.focus();
+
+            } catch (error) {
+                status.textContent =
+                    "Could not save the message. Please try again.";
+                console.error(error);
+            } finally {
+                submitButton.disabled = false;
+            }
         });
     </script>
 </body>
