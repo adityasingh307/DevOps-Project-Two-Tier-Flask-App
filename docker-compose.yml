@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   mysql:
     container_name: mysql
@@ -18,12 +16,11 @@ services:
 
     restart: always
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot","-proot"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 60s
-
 
   flask-app:
     container_name: two-tier-app
