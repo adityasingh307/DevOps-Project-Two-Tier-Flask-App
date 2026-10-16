@@ -1,310 +1,238 @@
-# DevOps Project Report: Automated CI/CD Pipeline for a 2-Tier Flask Application on AWS
+# Two-Tier Flask and MySQL App on AWS
 
-**Author:** Prashant Gohel
-**Date:** August 23, 2025
+I used this project to practice containerizing a small web application and deploying it to one AWS EC2 instance with Jenkins.
 
----
+The app has two tiers:
 
-### **Table of Contents**
-1. [Project Overview](#1-project-overview)
-2. [Architecture Diagram](#2-architecture-diagram)
-3. [Step 1: AWS EC2 Instance Preparation](#3-step-1-aws-ec2-instance-preparation)
-4. [Step 2: Install Dependencies on EC2](#4-step-2-install-dependencies-on-ec2)
-5. [Step 3: Jenkins Installation and Setup](#5-step-3-jenkins-installation-and-setup)
-6. [Step 4: GitHub Repository Configuration](#6-step-4-github-repository-configuration)
-    * [Dockerfile](#dockerfile)
-    * [docker-compose.yml](#docker-composeyml)
-    * [Jenkinsfile](#jenkinsfile)
-7. [Step 5: Jenkins Pipeline Creation and Execution](#7-step-5-jenkins-pipeline-creation-and-execution)
-8. [Conclusion](#8-conclusion)
-9. [Infrastructure Diagram](#9-infrastructure-diagram)
-10. [Work flow Diagram](#10-work-flow-diagram)
+- **Web tier:** a Python Flask app that displays and accepts messages.
+- **Database tier:** MySQL, which stores the messages.
 
----
+Docker Compose runs both services on a private Compose network. A named volume keeps MySQL data when containers are recreated. Jenkins checks out the `main` branch and runs the Compose deployment command on the EC2 host.
 
-### **1. Project Overview**
-This document outlines the step-by-step process for deploying a 2-tier web application (Flask + MySQL) on an AWS EC2 instance. The deployment is containerized using Docker and Docker Compose. A full CI/CD pipeline is established using Jenkins to automate the build and deployment process whenever new code is pushed to a GitHub repository.
+This is a learning project. The Flask development server is run with debug enabled, and the app is exposed directly on port 5000. It is not configured as a production service.
 
----
+## Architecture
 
-### **2. Architecture Diagram**
-
-```
-+-----------------+      +----------------------+      +-----------------------------+
-|   Developer     |----->|     GitHub Repo      |----->|        Jenkins Server       |
-| (pushes code)   |      | (Source Code Mgmt)   |      |  (on AWS EC2)               |
-+-----------------+      +----------------------+      |                             |
-                                                       | 1. Clones Repo              |
-                                                       | 2. Builds Docker Image      |
-                                                       | 3. Runs Docker Compose      |
-                                                       +--------------+--------------+
-                                                                      |
-                                                                      | Deploys
-                                                                      v
-                                                       +-----------------------------+
-                                                       |      Application Server     |
-                                                       |      (Same AWS EC2)         |
-                                                       |                             |
-                                                       | +-------------------------+ |
-                                                       | | Docker Container: Flask | |
-                                                       | +-------------------------+ |
-                                                       |              |              |
-                                                       |              v              |
-                                                       | +-------------------------+ |
-                                                       | | Docker Container: MySQL | |
-                                                       | +-------------------------+ |
-                                                       +-----------------------------+
+```text
+GitHub repository (main)
+          |
+          | Jenkins checks out main
+          v
+ Jenkins pipeline on EC2
+          |
+          | docker compose --env-file /etc/two-tier-app/.env up -d --build
+          v
+ One EC2 instance / Docker Engine
+ +--------------------------------+
+ | Flask container :5000          |
+ |         |                      |
+ |         | private Compose net  |
+ |         v                      |
+ | MySQL container                |
+ |         |                      |
+ | named mysql_data volume        |
+ +--------------------------------+
 ```
 
----
+The Flask container connects to MySQL by the Compose service name `mysql`. The database is not published on a host port in the current Compose file.
 
-### **3. Step 1: AWS EC2 Instance Preparation**
+## What I implemented and learned
 
-1.  **Launch EC2 Instance:**
-    * Navigate to the AWS EC2 console.
-    * Launch a new instance using the **Ubuntu 22.04 LTS** AMI.
-    * Select the **t2.micro** instance type for free-tier eligibility.
-    * Create and assign a new key pair for SSH access.
+- Built and ran a Flask + MySQL two-tier application with Docker and Docker Compose.
+- Used Compose environment variables to configure MySQL and the Flask database connection.
+- Kept MySQL files in the named `mysql_data` volume so they survive container replacement.
+- Stored the EC2 deployment environment file at `/etc/two-tier-app/.env`; it is not committed to Git.
+- Added a MySQL health check and made the Flask service wait for MySQL to become healthy.
+- Added bounded database initialization retries in `app.py` (up to 10 attempts, two seconds apart) to handle MySQL taking time to start.
+- Configured Jenkins to check out `main` and run `docker compose --env-file /etc/two-tier-app/.env up -d --build` on the EC2 host.
+- Troubleshot out-of-memory failures on `t3.micro` by upgrading the instance to `t3.medium` for this run.
+- Fixed a stale MySQL credential issue in a disposable test environment by recreating its volume. MySQL keeps initialized users and passwords in its data directory, so changing environment variables alone does not rewrite credentials in an existing database volume.
 
-<img src="diagrams/01.png">
+## Repository files
 
-2.  **Configure Security Group:**
-    * Create a security group with the following inbound rules:
-        * **Type:** SSH, **Protocol:** TCP, **Port:** 22, **Source:** Your IP
-        * **Type:** HTTP, **Protocol:** TCP, **Port:** 80, **Source:** Anywhere (0.0.0.0/0)
-        * **Type:** Custom TCP, **Protocol:** TCP, **Port:** 5000 (for Flask), **Source:** Anywhere (0.0.0.0/0)
-        * **Type:** Custom TCP, **Protocol:** TCP, **Port:** 8080 (for Jenkins), **Source:** Anywhere (0.0.0.0/0)
-
-<img src="diagrams/02.png">
-
-3.  **Connect to EC2 Instance:**
-    * Use SSH to connect to the instance's public IP address.
-    ```bash
-    ssh -i /path/to/key.pem ubuntu@<ec2-public-ip>
-    ```
-
----
-
-### **4. Step 2: Install Dependencies on EC2**
-
-1.  **Update System Packages:**
-    ```bash
-    sudo apt update && sudo apt upgrade -y
-    ```
-
-2.  **Install Git, Docker, and Docker Compose:**
-    ```bash
-    sudo apt install git docker.io docker-compose-v2 -y
-    ```
-
-3.  **Start and Enable Docker:**
-    ```bash
-    sudo systemctl start docker
-    sudo systemctl enable docker
-    ```
-
-4.  **Add User to Docker Group (to run docker without sudo):**
-    ```bash
-    sudo usermod -aG docker $USER
-    newgrp docker
-    ```
-
----
-
-### **5. Step 3: Jenkins Installation and Setup**
-
-1.  **Install Java (OpenJDK 17):**
-    ```bash
-    sudo apt install openjdk-17-jdk -y
-    ```
-
-2.  **Add Jenkins Repository and Install:**
-    ```bash
-    curl -fsSL [https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key](https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key) | sudo tee /usr/share/keyrings/jenkins-keyring.asc > /dev/null
-    echo deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] [https://pkg.jenkins.io/debian-stable](https://pkg.jenkins.io/debian-stable) binary/ | sudo tee /etc/apt/sources.list.d/jenkins.list > /dev/null
-    sudo apt update
-    sudo apt install jenkins -y
-    ```
-
-3.  **Start and Enable Jenkins Service:**
-    ```bash
-    sudo systemctl start jenkins
-    sudo systemctl enable jenkins
-    ```
-
-4.  **Initial Jenkins Setup:**
-    * Retrieve the initial admin password:
-        ```bash
-        sudo cat /var/lib/jenkins/secrets/initialAdminPassword
-        ```
-    * Access the Jenkins dashboard at `http://<ec2-public-ip>:8080`.
-    * Paste the password, install suggested plugins, and create an admin user.
-
-5.  **Grant Jenkins Docker Permissions:**
-    ```bash
-    sudo usermod -aG docker jenkins
-    sudo systemctl restart jenkins
-    ```
-<img src="diagrams/03.png">
-
----
-
-### **6. Step 4: GitHub Repository Configuration**
-
-Ensure your GitHub repository contains the following three files.
-
-#### **Dockerfile**
-This file defines the environment for the Flask application container.
-```dockerfile
-# Use an official Python runtime as a parent image
-FROM python:3.9-slim
-
-# Set the working directory in the container
-WORKDIR /app
-
-# Install system dependencies required for mysqlclient
-RUN apt-get update && apt-get install -y gcc default-libmysqlclient-dev pkg-config && \
-    rm -rf /var/lib/apt/lists/*
-
-# Copy the requirements file to leverage Docker cache
-COPY requirements.txt .
-
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy the rest of the application code
-COPY . .
-
-# Expose the port the app runs on
-EXPOSE 5000
-
-# Command to run the application
-CMD ["python", "app.py"]
+```text
+.
+├── app.py                 # Flask routes and database initialization/retries
+├── templates/index.html   # Message form and message list
+├── Dockerfile             # Flask image build
+├── docker-compose.yml     # Flask, MySQL, network, health checks, and volume
+├── Jenkinsfile            # Checkout main and deploy with Docker Compose
+├── requirement.txt        # Python dependencies
+└── .env.example           # Variable names and placeholder values for local use
 ```
 
-#### **docker-compose.yml**
-This file defines and orchestrates the multi-container application (Flask and MySQL).
-```yaml
-version: "3.8"
+## Prerequisites
 
-services:
-  mysql:
-    container_name: mysql
-    image: mysql
-    environment:
-      MYSQL_DATABASE: "devops"
-      MYSQL_ROOT_PASSWORD: "root"
-    ports:
-      - "3306:3306"
-    volumes:
-      - mysql-data:/var/lib/mysql
-    networks:
-      - two-tier
-    restart: always
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 60s
+- Git
+- Docker Engine and the Docker Compose plugin
+- For AWS deployment: an Ubuntu EC2 instance, Jenkins, and a Jenkins agent running on that same instance
+- The Jenkins agent needs permission to run Docker commands and read `/etc/two-tier-app/.env`
+- Security group access limited to the people who need it: SSH (22), Jenkins (8080), and the app (5000)
 
-  flask:
-    build:
-      context: .
-    container_name: two-tier-app
-    ports:
-      - "5000:5000"
-    environment:
-      - MYSQL_HOST=mysql
-      - MYSQL_USER=root
-      - MYSQL_PASSWORD=root
-      - MYSQL_DB=devops
-    networks:
-      - two-tier
-    depends_on:
-      - mysql
-    restart: always
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 60s
+The deployment used a single `t3.medium` EC2 instance after `t3.micro` ran out of memory during this project. Instance sizing depends on workload and is not a general production recommendation.
 
-volumes:
-  mysql-data:
+## Run locally with Docker Compose
 
-networks:
-  two-tier:
+1. Clone the repository and enter its directory:
+
+   ```bash
+   git clone https://github.com/adityasingh307/DevOps-Project-Two-Tier-Flask-App.git
+   cd DevOps-Project-Two-Tier-Flask-App
+   ```
+
+2. Create a local environment file from the example and replace the placeholder passwords:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+   `.env` is ignored by Git. Do not commit real credentials.
+
+3. Build and start the services:
+
+   ```bash
+   docker compose --env-file .env up -d --build
+   ```
+
+4. Check the services and app endpoint:
+
+   ```bash
+   docker compose ps
+   curl -f http://localhost:5000/health
+   ```
+
+   Open `http://localhost:5000` to submit a message and see saved messages.
+
+5. Follow logs or stop the containers:
+
+   ```bash
+   docker compose logs -f flask-app mysql
+   docker compose down
+   ```
+
+`docker compose down` keeps the named database volume. To remove local data as well, see the warning in [Troubleshooting](#troubleshooting).
+
+## Deploy on one EC2 instance with Jenkins
+
+The Jenkins agent and the Docker Compose deployment target must be the same EC2 host for the current `Jenkinsfile`: `agent any` runs the shell step on an available agent, and Compose acts on that agent's local Docker daemon.
+
+### Prepare the host
+
+Install and start Docker Engine, the Docker Compose plugin, Java, and Jenkins on the EC2 instance. Give the Jenkins agent permission to use Docker. For a Jenkins service account named `jenkins`, the typical host setup is:
+
+```bash
+sudo usermod -aG docker jenkins
+sudo systemctl restart jenkins
 ```
 
-#### **Jenkinsfile**
-This file contains the pipeline-as-code definition for Jenkins.
-```groovy
-pipeline {
-    agent any
-    stages {
-        stage('Clone Code') {
-            steps {
-                // Replace with your GitHub repository URL
-                git branch: 'main', url: '[https://github.com/your-username/your-repo.git](https://github.com/your-username/your-repo.git)'
-            }
-        }
-        stage('Build Docker Image') {
-            steps {
-                sh 'docker build -t flask-app:latest .'
-            }
-        }
-        stage('Deploy with Docker Compose') {
-            steps {
-                // Stop existing containers if they are running
-                sh 'docker compose down || true'
-                // Start the application, rebuilding the flask image
-                sh 'docker compose up -d --build'
-            }
-        }
-    }
-}
+Group membership grants broad control over the host through Docker, so use it only for a trusted Jenkins agent.
+
+Create the environment file on the EC2 instance. Use strong, unique values and keep the file out of the repository:
+
+```bash
+sudo install -d -o root -g jenkins -m 0750 /etc/two-tier-app
+sudoedit /etc/two-tier-app/.env
 ```
 
----
+The file should contain the variables used by `docker-compose.yml`:
 
-### **7. Step 5: Jenkins Pipeline Creation and Execution**
+```dotenv
+MYSQL_ROOT_PASSWORD=replace_with_a_strong_root_password
+MYSQL_DATABASE=devops
+MYSQL_USER=appuser
+MYSQL_PASSWORD=replace_with_a_strong_app_password
+```
 
-1.  **Create a New Pipeline Job in Jenkins:**
-    * From the Jenkins dashboard, select **New Item**.
-    * Name the project, choose **Pipeline**, and click **OK**.
+Allow the Jenkins service account to read the file without making it world-readable:
 
-2.  **Configure the Pipeline:**
-    * In the project configuration, scroll to the **Pipeline** section.
-    * Set **Definition** to **Pipeline script from SCM**.
-    * Choose **Git** as the SCM.
-    * Enter your GitHub repository URL.
-    * Verify the **Script Path** is `Jenkinsfile`.
-    * Save the configuration.
+```bash
+sudo chown root:jenkins /etc/two-tier-app/.env
+sudo chmod 0640 /etc/two-tier-app/.env
+```
 
-<img src="diagrams/04.png">
+The real file stays on the EC2 host at `/etc/two-tier-app/.env`; only `.env.example` with placeholders belongs in Git. Never paste secrets into the Jenkinsfile or screenshots.
 
-3.  **Run the Pipeline:**
-    * Click **Build Now** to trigger the pipeline manually for the first time.
-    * Monitor the execution through the **Stage View** or **Console Output**.
+### Configure and run Jenkins
 
-<img src="diagrams/05.png">
-<img src="diagrams/06.png">
+Create a Jenkins Pipeline job configured to use this repository and the `Jenkinsfile` script path. The current pipeline checks out the `main` branch and runs:
 
-4.  **Verify Deployment:**
-    * After a successful build, your Flask application will be accessible at `http://<your-ec2-public-ip>:5000`.
-    * Confirm the containers are running on the EC2 instance with `docker ps`.
+```bash
+docker compose --env-file /etc/two-tier-app/.env up -d --build
+```
 
----
+Run the job and review its stage result and console output. Automatic deployment on every push depends on the Jenkins trigger or webhook configuration; the Jenkinsfile itself does not configure a webhook.
 
-### **8. Conclusion**
-The CI/CD pipeline is now fully operational. Any `git push` to the `main` branch of the configured GitHub repository will automatically trigger the Jenkins pipeline, which will build the new Docker image and deploy the updated application, ensuring a seamless and automated workflow from development to production.
+After a successful run, check the containers on the EC2 host:
 
+```bash
+docker compose --env-file /etc/two-tier-app/.env ps
+docker compose --env-file /etc/two-tier-app/.env logs --tail=100 flask-app mysql
+```
 
-### **9. Infrastructure Diagram**
-<img src="diagrams/Infrastructure.png">
+Open `http://<EC2-public-address>:5000` if the instance security group allows access from your client IP. Do not expose MySQL port 3306 to the internet.
 
+## Security notes
 
-### **10. Work flow Diagram**
-<img src="diagrams/project_workflow.png">
+- `/etc/two-tier-app/.env` contains database credentials and must stay on the host. The repository's `.gitignore` excludes `.env` files; `.env.example` uses placeholders.
+- Restrict SSH, Jenkins (8080), and the app (5000) to trusted source addresses where possible. The current app uses HTTP directly and has no TLS termination.
+- The Dockerfile starts Flask with `debug=True`. Keep this setup for learning only; do not expose the development server as a production service.
+- The `/health` endpoint returns an app response; it does not check whether MySQL queries are succeeding. The Compose health-check command for Flask uses `curl`, but the current Dockerfile does not install `curl`, so check this dependency if Compose reports the Flask container as unhealthy.
+- The Compose file uses a named volume for database persistence. Protect and back up database data if it matters.
+
+## Troubleshooting
+
+### Flask cannot connect to MySQL during startup
+
+Check the MySQL container and its health status:
+
+```bash
+docker compose --env-file /etc/two-tier-app/.env ps
+docker compose --env-file /etc/two-tier-app/.env logs mysql
+```
+
+Compose waits for the MySQL health check before starting Flask. The app also retries database initialization up to 10 times with a two-second delay. These retries are bounded; if MySQL is still unavailable, inspect the logs and fix the underlying issue.
+
+### MySQL reports an old password after changing `.env`
+
+The official MySQL image applies initialization variables when it creates a new database data directory. An existing `mysql_data` volume already contains the database users and passwords, so editing `.env` alone does not update those stored credentials. For a real database, change the MySQL user password in MySQL and update the app configuration to match.
+
+For a **disposable test database only**, removing the volume forces MySQL to initialize from the current environment file again. This permanently deletes messages and other data in that volume:
+
+```bash
+docker compose --env-file /etc/two-tier-app/.env down -v
+docker compose --env-file /etc/two-tier-app/.env up -d --build
+```
+
+Do not run `down -v` on data you need to keep.
+
+### Docker build or services run out of memory
+
+During this project, the `t3.micro` instance ran out of memory; upgrading the test host to `t3.medium` resolved the issue for this deployment. Check EC2 memory and container logs before changing instance size, and remember that resizing affects AWS cost.
+
+### Jenkins cannot read the environment file or Docker daemon
+
+Confirm the pipeline runs on the EC2 agent, the `jenkins` user can read `/etc/two-tier-app/.env`, and the Jenkins service has restarted after Docker group membership changed. The Compose command uses an absolute environment-file path, so the file must exist on that agent host.
+
+## Screenshots to capture before stopping or cleaning up AWS
+
+Create a `screenshots/` folder in the repository and save these images with the exact names below:
+
+1. [ ] `screenshots/01-working-app.png` — browser showing the Flask app with a submitted message displayed from MySQL.
+2. [ ] `screenshots/02-jenkins-success.png` — Jenkins build number and successful pipeline stage view. Include enough of the result to show the deployment completed.
+3. [ ] `screenshots/03-jenkins-console.png` — console output showing checkout of `main` and the Docker Compose deployment command. Crop or redact credentials, tokens, and other secrets.
+4. [ ] `screenshots/04-ec2-instance.png` — EC2 instance details showing the instance type (`t3.medium`) and running state. Hide account identifiers and public IP if posting publicly.
+5. [ ] `screenshots/05-compose-services.png` — terminal output from `docker compose --env-file /etc/two-tier-app/.env ps` showing the Flask and MySQL services running. Do not show the `.env` contents.
+6. [ ] `screenshots/06-security-group.png` — optional security group inbound rules showing intended source restrictions and no public MySQL port.
+
+The first five are the recommended project record; the security group image is optional. Capture them before stopping or cleaning up AWS. Review each image for secrets and identifying details before uploading it to this repository. Once uploaded, link them here, for example:
+
+```markdown
+![Working Flask app](screenshots/01-working-app.png)
+```
+
+## What I would improve next
+
+- Disable Flask debug mode and use a production WSGI server before any production deployment.
+- Add a proper TLS-enabled reverse proxy and restrict direct access to the Flask port.
+- Move secrets into a dedicated secrets manager for a longer-lived deployment.
+- Add application tests and a Jenkins validation stage before deployment.
