@@ -213,26 +213,25 @@ During this project, the `t3.micro` instance ran out of memory; upgrading the te
 
 Confirm the pipeline runs on the EC2 agent, the `jenkins` user can read `/etc/two-tier-app/.env`, and the Jenkins service has restarted after Docker group membership changed. The Compose command uses an absolute environment-file path, so the file must exist on that agent host.
 
-## Screenshots to capture before stopping or cleaning up AWS
+## Deployment screenshots
 
-Create a `screenshots/` folder in the repository and save these images with the exact names below:
+### Flask app
 
-1. [ ] `screenshots/01-working-app.png` — browser showing the Flask app with a submitted message displayed from MySQL.
-2. [ ] `screenshots/02-jenkins-success.png` — Jenkins build number and successful pipeline stage view. Include enough of the result to show the deployment completed.
-3. [ ] `screenshots/03-jenkins-console.png` — console output showing checkout of `main` and the Docker Compose deployment command. Crop or redact credentials, tokens, and other secrets.
-4. [ ] `screenshots/04-ec2-instance.png` — EC2 instance details showing the instance type (`t3.medium`) and running state. Hide account identifiers and public IP if posting publicly.
-5. [ ] `screenshots/05-compose-services.png` — terminal output from `docker compose --env-file /etc/two-tier-app/.env ps` showing the Flask and MySQL services healthy after the updated Compose health check. Do not show the `.env` contents.
-6. [ ] `screenshots/06-security-group.png` — optional security group inbound rules showing intended source restrictions and no public MySQL port.
+![Flask app displaying a saved message](screenshots/01-working-app.png)
 
-The first five are the recommended project record; the security group image is optional. Capture them before stopping or cleaning up AWS. Review each image for secrets and identifying details before uploading it to this repository. Once uploaded, link them here, for example:
+### Jenkins pipeline success
 
-```markdown
-![Working Flask app](screenshots/01-working-app.png)
-```
+![Successful Jenkins pipeline](screenshots/02-jenkins-success.png)
 
-## What I would improve next
+### Jenkins deployment log
 
-- Disable Flask debug mode and use a production WSGI server before any production deployment.
-- Add a proper TLS-enabled reverse proxy and restrict direct access to the Flask port.
-- Move secrets into a dedicated secrets manager for a longer-lived deployment.
-- Add application tests and a Jenkins validation stage before deployment.
+![Jenkins console output](screenshots/03-jenkins-console.png)
+
+### EC2 instance
+
+![EC2 instance details](screenshots/04-ec2-instance.png)
+
+### Compose services
+
+![Flask and MySQL container health](screenshots/05-compose-services.png)
+
