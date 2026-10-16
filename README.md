@@ -176,7 +176,7 @@ Open `http://<EC2-public-address>:5000` if the instance security group allows ac
 - `/etc/two-tier-app/.env` contains database credentials and must stay on the host. The repository's `.gitignore` excludes `.env` files; `.env.example` uses placeholders.
 - Restrict SSH, Jenkins (8080), and the app (5000) to trusted source addresses where possible. The current app uses HTTP directly and has no TLS termination.
 - The Dockerfile starts Flask with `debug=True`. Keep this setup for learning only; do not expose the development server as a production service.
-- The `/health` endpoint returns an app response; it does not check whether MySQL queries are succeeding. The Compose health-check command for Flask uses `curl`, but the current Dockerfile does not install `curl`, so check this dependency if Compose reports the Flask container as unhealthy.
+- The Compose health check calls the Flask `/health` endpoint with Python's standard library, so it does not need an extra `curl` package. The endpoint confirms that Flask responds; it does not check whether MySQL queries are succeeding.
 - The Compose file uses a named volume for database persistence. Protect and back up database data if it matters.
 
 ## Troubleshooting
@@ -221,7 +221,7 @@ Create a `screenshots/` folder in the repository and save these images with the 
 2. [ ] `screenshots/02-jenkins-success.png` — Jenkins build number and successful pipeline stage view. Include enough of the result to show the deployment completed.
 3. [ ] `screenshots/03-jenkins-console.png` — console output showing checkout of `main` and the Docker Compose deployment command. Crop or redact credentials, tokens, and other secrets.
 4. [ ] `screenshots/04-ec2-instance.png` — EC2 instance details showing the instance type (`t3.medium`) and running state. Hide account identifiers and public IP if posting publicly.
-5. [ ] `screenshots/05-compose-services.png` — terminal output from `docker compose --env-file /etc/two-tier-app/.env ps` showing the Flask and MySQL services running. Do not show the `.env` contents.
+5. [ ] `screenshots/05-compose-services.png` — terminal output from `docker compose --env-file /etc/two-tier-app/.env ps` showing the Flask and MySQL services healthy after the updated Compose health check. Do not show the `.env` contents.
 6. [ ] `screenshots/06-security-group.png` — optional security group inbound rules showing intended source restrictions and no public MySQL port.
 
 The first five are the recommended project record; the security group image is optional. Capture them before stopping or cleaning up AWS. Review each image for secrets and identifying details before uploading it to this repository. Once uploaded, link them here, for example:
